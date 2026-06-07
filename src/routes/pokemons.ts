@@ -1,129 +1,135 @@
 import { type Request, type Response, Router } from "express";
 import { POKEMONS, HttpStatusCodes, messages } from "../consts";
 import type { Pokemon } from "../models";
-import { getAllPokemons, getPokemonById } from "../controllers/pokemons";
+import {
+  createPokemon,
+  deletePokemon,
+  getAllPokemons,
+  getPokemonById,
+  partiallyUpdatePokemon,
+  updatePokemon,
+} from "../controllers";
 
 export const pokemonRouter = Router();
-export default pokemonRouter;
 
 pokemonRouter.get("/", (req: Request, res: Response) => {
   const { type } = req.query;
-  const { message, data } = getAllPokemons(type as string | undefined);
+  const { data } = getAllPokemons(type as string | undefined);
 
-  res.json({ message, data });
+  res.json({ message: messages.SUCCESS, data });
 });
 
 pokemonRouter.get("/:id", (req: Request, res: Response) => {
   const { id } = req.params;
-  const { message, data } = getPokemonById(Number(id));
-
-  res.json({ message, data });
-});
-
-pokemonRouter.post("/", (req: Request, res: Response) => {
-  const { name, type } = req.body;
-  if (!name || !type) {
+  let data: (typeof POKEMONS)[number] | null = null;
+  try {
+    const result = getPokemonById(Number(id));
+    data = result.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({ message: error.message, data: [] });
+      return;
+    }
     res
       .status(HttpStatusCodes.BAD_REQUEST)
-      .json({ message: messages.NAME_TYPE_REQUIRED, data: [] });
+      .json({ message: "Unknown error has happened", data: [] });
     return;
   }
 
-  const newPokemon: Pokemon = {
-    id: POKEMONS.length + 1,
-    name,
-    type,
-  };
-  POKEMONS.push(newPokemon);
+  res.json({ message: messages.SUCCESS, data });
+});
+
+pokemonRouter.post("/", (req: Request, res: Response) => {
+  const { name, type, rarity } = req.body;
+  const data = createPokemon(name, type, rarity);
+
   res
     .status(HttpStatusCodes.CREATED)
-    .json({ message: messages.CREATED_SUCCESS, data: newPokemon });
+    .json({ message: messages.CREATED_SUCCESS, data });
 });
 
 pokemonRouter.put("/", (req: Request, res: Response) => {
   const { id } = req.params;
-  if (isNaN(Number(id))) {
+  const { name, type, rarity } = req.body;
+
+  let poke: Pokemon | null = null;
+
+  try {
+    const result = updatePokemon(Number(id), name, type, rarity);
+    poke = result.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({ message: error.message, data: [] });
+      return;
+    }
     res
       .status(HttpStatusCodes.BAD_REQUEST)
-      .json({ message: messages.INVALID_ID, data: [] });
+      .json({ message: "Unknown error has happened", data: [] });
     return;
   }
 
-  const pokemonIndex = POKEMONS.findIndex((p) => p.id === Number(id));
-  if (pokemonIndex === -1) {
-    res
-      .status(HttpStatusCodes.NOT_FOUND)
-      .json({ message: messages.NOT_FOUND, data: [] });
-    return;
-  }
-
-  const { name, type } = req.body;
-  if (!name || !type) {
-    res
-      .status(HttpStatusCodes.BAD_REQUEST)
-      .json({ message: messages.NAME_TYPE_REQUIRED, data: [] });
-    return;
-  }
-
-  POKEMONS[pokemonIndex] = { id: Number(id), name, type };
   res.json({
     message: messages.UPDATED_SUCCESS,
-    data: POKEMONS[pokemonIndex],
+    data: poke,
   });
 });
 
 pokemonRouter.patch("/", (req: Request, res: Response) => {
   const { id } = req.params;
-  if (isNaN(Number(id))) {
+
+  let data: Pokemon | null = null;
+
+  try {
+    const result = partiallyUpdatePokemon(
+      Number(id),
+      req.body.name,
+      req.body.type,
+      req.body.rarity,
+    );
+    data = result.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({ message: error.message, data: [] });
+      return;
+    }
     res
       .status(HttpStatusCodes.BAD_REQUEST)
-      .json({ message: messages.INVALID_ID, data: [] });
+      .json({ message: "Unknown error has happened", data: [] });
     return;
   }
-
-  const pokemonIndex = POKEMONS.findIndex((p) => p.id === Number(id));
-  if (pokemonIndex === -1) {
-    res
-      .status(HttpStatusCodes.NOT_FOUND)
-      .json({ message: messages.NOT_FOUND, data: [] });
-    return;
-  }
-
-  const { name, type } = req.body;
-  if (!name && !type) {
-    res
-      .status(HttpStatusCodes.BAD_REQUEST)
-      .json({ message: messages.PATCH_FIELD_REQUIRED, data: [] });
-    return;
-  }
-
-  if (name) POKEMONS[pokemonIndex].name = name;
-  if (type) POKEMONS[pokemonIndex].type = type;
 
   res.json({
     message: messages.UPDATED_SUCCESS,
-    data: POKEMONS[pokemonIndex],
+    data,
   });
 });
 
 pokemonRouter.delete("/", (req: Request, res: Response) => {
   const { id } = req.params;
-  if (isNaN(Number(id))) {
+
+  let deletedPokemon: Pokemon | null = null;
+  try {
+    const result = deletePokemon(Number(id));
+    deletedPokemon = result.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({ message: error.message, data: [] });
+      return;
+    }
     res
       .status(HttpStatusCodes.BAD_REQUEST)
-      .json({ message: messages.INVALID_ID, data: [] });
+      .json({ message: "Unknown error has happened", data: [] });
     return;
   }
 
-  const pokemonIndex = POKEMONS.findIndex((p) => p.id === Number(id));
-  if (pokemonIndex === -1) {
-    res
-      .status(HttpStatusCodes.NOT_FOUND)
-      .json({ message: messages.INVALID_ID, data: [] });
-    return;
-  }
-
-  const deletedPokemon = POKEMONS.splice(pokemonIndex, 1)[0];
   res.json({
     message: messages.DELETED_SUCCESS,
     data: deletedPokemon,
