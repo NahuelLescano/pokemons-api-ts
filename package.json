@@ -2,9 +2,9 @@
   "name": "pokemon",
   "version": "1.0.0",
   "description": "",
-  "main": "index.ts",
+  "main": "server.ts",
   "scripts": {
-    "dev": "tsx watch ./src/index.ts"
+    "dev": "tsx watch ./src/server.ts"
   },
   "keywords": [],
   "author": "",
