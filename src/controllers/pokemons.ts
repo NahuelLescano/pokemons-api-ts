@@ -1,62 +1,122 @@
 import { messages, POKEMONS } from "../consts";
-import { Pokemon } from "../models";
+import type { Pokemon, PokemonRarity, PokemonType } from "../models";
 
 type GetAllPokemonsResponse = {
-  message: string;
-  data: typeof POKEMONS;
+  data: Pokemon[];
 };
 export const getAllPokemons = (type?: string): GetAllPokemonsResponse => {
+  const pokemons = POKEMONS.filter((p) => p.deleted === false);
+
   if (type) {
-    const pokemonsByType = POKEMONS.filter((p) =>
+    const pokemonsByType = pokemons.filter((p) =>
       p.type.toLowerCase().includes(type.toLowerCase()),
     );
     return {
-      message: messages.SUCCESS,
       data: pokemonsByType,
     };
   }
 
   return {
-    message: messages.SUCCESS,
-    data: POKEMONS,
+    data: pokemons,
   };
 };
 
 type GetPokemonByIdResponse = {
-  message: string;
   data: (typeof POKEMONS)[number] | null;
 };
 export const getPokemonById = (id: number): GetPokemonByIdResponse => {
   if (isNaN(id)) {
-    return {
-      message: messages.INVALID_ID,
-      data: null,
-    };
+    throw new Error(messages.INVALID_ID);
   }
 
   const pokemon = POKEMONS.find((p) => p.id === id);
   if (!pokemon) {
-    return {
-      message: messages.NOT_FOUND,
-      data: null,
-    };
+    throw new Error(messages.NOT_FOUND);
   }
 
   return {
-    message: messages.SUCCESS,
     data: pokemon,
   };
 };
 
-export const createPokemon = (name: string, type: string) => {
+interface PokemonResponse {
+  data: Pokemon;
+}
+
+export const createPokemon = (name: string, type: PokemonType, rarity: PokemonRarity): PokemonResponse => {
   const newPokemon: Pokemon = {
     id: POKEMONS.length + 1,
     name,
     type,
+    rarity,
+    deleted: false,
   };
   POKEMONS.push(newPokemon);
   return {
-    message: messages.CREATED_SUCCESS,
     data: newPokemon,
+  };
+};
+
+export const updatePokemon = (id: number, name: string, type: PokemonType, rarity: PokemonRarity): PokemonResponse => {
+  if (isNaN(Number(id))) {
+    throw new Error(messages.INVALID_ID);
+  }
+
+  if (!name || !type || !rarity) {
+    throw new Error(messages.INVALID_POKEMON);
+  }
+
+  const pokemonIndex = POKEMONS.findIndex((p) => p.id === Number(id));
+  if (pokemonIndex === -1) {
+    throw new Error(messages.NOT_FOUND);
+  }
+
+  POKEMONS[pokemonIndex] = { id, name, type, rarity, deleted: false };
+  return {
+    data: POKEMONS[pokemonIndex],
+  };
+};
+
+export const partiallyUpdatePokemon = (id: number, name?: string, type?: PokemonType, rarity?: PokemonRarity): PokemonResponse => {
+  if (isNaN(id)) {
+    throw new Error(messages.INVALID_ID);
+  }
+
+  if (!name && !type) {
+    throw new Error(messages.PATCH_FIELD_REQUIRED);
+  }
+
+  const pokemonIndex = POKEMONS.findIndex((p) => p.id === id);
+  if (pokemonIndex === -1) {
+    throw new Error(messages.NOT_FOUND);
+  }
+
+  if (name) POKEMONS[pokemonIndex].name = name;
+  if (type) POKEMONS[pokemonIndex].type = type;
+  if (rarity) POKEMONS[pokemonIndex].rarity = rarity;
+
+  return {
+    data: POKEMONS[pokemonIndex],
+  };
+};
+
+export const deletePokemon = (id: number): PokemonResponse => {
+  if (isNaN(id)) {
+    throw new Error(messages.INVALID_ID);
+  }
+
+  const pokemonIndex = POKEMONS.findIndex((p) => p.id === Number(id));
+  if (pokemonIndex === -1) {
+    throw new Error(messages.NOT_FOUND);
+  }
+
+  const deletedPokemon = {
+    ...POKEMONS[pokemonIndex],
+    deleted: true,
+  };
+  POKEMONS[pokemonIndex] = deletedPokemon;
+
+  return {
+    data: deletedPokemon,
   };
 };
