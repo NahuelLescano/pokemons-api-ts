@@ -1,122 +1,107 @@
-import { messages, POKEMONS } from "../consts";
-import type { Pokemon, PokemonRarity, PokemonType } from "../models";
+import type { Request, Response } from "express";
+import { HttpStatusCodes, messages } from "../consts";
+import { getAll, getById, create, update, patch, drop } from "../database";
+import { tryCatch } from "../tryCatch";
 
-type GetAllPokemonsResponse = {
-  data: Pokemon[];
-};
-export const getAllPokemons = (type?: string): GetAllPokemonsResponse => {
-  const pokemons = POKEMONS.filter((p) => p.deleted === false);
-
-  if (type) {
-    const pokemonsByType = pokemons.filter((p) =>
-      p.type.toLowerCase().includes(type.toLowerCase()),
-    );
-    return {
-      data: pokemonsByType,
-    };
+export const getAllPokemons = async (req: Request, res: Response) => {
+  const { type } = req.query;
+  const { result, error } = await tryCatch(getAll(type as string | undefined));
+  if (error) {
+    res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ message: error.message, result: [] });
+    return;
   }
 
-  return {
-    data: pokemons,
-  };
+  res.json({ message: messages.SUCCESS, result: result.data });
 };
 
-type GetPokemonByIdResponse = {
-  data: (typeof POKEMONS)[number] | null;
-};
-export const getPokemonById = (id: number): GetPokemonByIdResponse => {
-  if (isNaN(id)) {
-    throw new Error(messages.INVALID_ID);
+export const getPokemonById = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { result, error } = await tryCatch(getById(Number(id)));
+
+  if (error) {
+    res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ message: error.message, result: [] });
+    return;
   }
 
-  const pokemon = POKEMONS.find((p) => p.id === id);
-  if (!pokemon) {
-    throw new Error(messages.NOT_FOUND);
-  }
-
-  return {
-    data: pokemon,
-  };
+  res.json({ message: messages.SUCCESS, result });
 };
 
-interface PokemonResponse {
-  data: Pokemon;
-}
+export const createPokemon = async (req: Request, res: Response) => {
+  const { name, type, rarity } = req.body;
+  const { result, error } = await tryCatch(create(name, type, rarity));
 
-export const createPokemon = (name: string, type: PokemonType, rarity: PokemonRarity): PokemonResponse => {
-  const newPokemon: Pokemon = {
-    id: POKEMONS.length + 1,
-    name,
-    type,
-    rarity,
-    deleted: false,
-  };
-  POKEMONS.push(newPokemon);
-  return {
-    data: newPokemon,
-  };
+  if (error) {
+    res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ message: error.message, result: [] });
+    return;
+  }
+
+  res
+    .status(HttpStatusCodes.CREATED)
+    .json({ message: messages.CREATED_SUCCESS, result });
 };
 
-export const updatePokemon = (id: number, name: string, type: PokemonType, rarity: PokemonRarity): PokemonResponse => {
-  if (isNaN(Number(id))) {
-    throw new Error(messages.INVALID_ID);
+export const updatePokemon = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { name, type, rarity } = req.body;
+
+  const { result, error } = await tryCatch(
+    update(Number(id), name, type, rarity),
+  );
+
+  if (error) {
+    res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ message: error.message, result: [] });
+    return;
   }
 
-  if (!name || !type || !rarity) {
-    throw new Error(messages.INVALID_POKEMON);
-  }
-
-  const pokemonIndex = POKEMONS.findIndex((p) => p.id === Number(id));
-  if (pokemonIndex === -1) {
-    throw new Error(messages.NOT_FOUND);
-  }
-
-  POKEMONS[pokemonIndex] = { id, name, type, rarity, deleted: false };
-  return {
-    data: POKEMONS[pokemonIndex],
-  };
+  res.json({
+    message: messages.UPDATED_SUCCESS,
+    result,
+  });
 };
 
-export const partiallyUpdatePokemon = (id: number, name?: string, type?: PokemonType, rarity?: PokemonRarity): PokemonResponse => {
-  if (isNaN(id)) {
-    throw new Error(messages.INVALID_ID);
+export const patchPokemon = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { name, type, rarity } = req.body;
+
+  const { result, error } = await tryCatch(
+    patch(Number(id), name, type, rarity),
+  );
+
+  if (error) {
+    res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ message: error.message, result: [] });
+    return;
   }
 
-  if (!name && !type) {
-    throw new Error(messages.PATCH_FIELD_REQUIRED);
-  }
-
-  const pokemonIndex = POKEMONS.findIndex((p) => p.id === id);
-  if (pokemonIndex === -1) {
-    throw new Error(messages.NOT_FOUND);
-  }
-
-  if (name) POKEMONS[pokemonIndex].name = name;
-  if (type) POKEMONS[pokemonIndex].type = type;
-  if (rarity) POKEMONS[pokemonIndex].rarity = rarity;
-
-  return {
-    data: POKEMONS[pokemonIndex],
-  };
+  res.json({
+    message: messages.UPDATED_SUCCESS,
+    result,
+  });
 };
 
-export const deletePokemon = (id: number): PokemonResponse => {
-  if (isNaN(id)) {
-    throw new Error(messages.INVALID_ID);
+export const deletePokemon = async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const { result, error } = await tryCatch(drop(Number(id)));
+
+  if (error) {
+    res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ message: error.message, result: [] });
+    return;
   }
 
-  const pokemonIndex = POKEMONS.findIndex((p) => p.id === Number(id));
-  if (pokemonIndex === -1) {
-    throw new Error(messages.NOT_FOUND);
-  }
-
-  const deletedPokemon = {
-    ...POKEMONS[pokemonIndex],
-    deleted: true,
-  };
-  POKEMONS[pokemonIndex] = deletedPokemon;
-
-  return {
-    data: deletedPokemon,
-  };
+  res.json({
+    message: messages.DELETED_SUCCESS,
+    result,
+  });
 };
