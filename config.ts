@@ -1,6 +1,8 @@
 import { loadEnvFile } from "node:process";
 
-loadEnvFile();
+try {
+  loadEnvFile();
+} catch {}
 
 export const {
   PORT = 4000,
