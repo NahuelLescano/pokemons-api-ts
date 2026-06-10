@@ -4,10 +4,13 @@
   "description": "",
   "main": "server.ts",
   "scripts": {
-    "dev": "tsx watch ./src/server.ts"
+    "dev": "tsx watch ./src/server.ts",
+    "docker:db": "docker compose up db -d",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down -v",
+    "docker:logs": "docker compose logs"
   },
-  "keywords": [],
-  "author": "",
+  "author": "Nahuel Lescano",
   "license": "ISC",
   "type": "module",
   "dependencies": {
