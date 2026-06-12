@@ -1,10 +1,12 @@
 import { messages } from "../consts";
 import { pool } from "./connection";
 import type { Pokemon, PokemonRarity, PokemonType } from "../types";
+import { tryCatch } from "../tryCatch";
 
 type GetAllPokemonsResponse = {
-  data: Pokemon[];
+  pokemons: Pokemon[];
 };
+
 export const getAll = async (
   type?: string,
 ): Promise<GetAllPokemonsResponse> => {
@@ -23,21 +25,23 @@ export const getAll = async (
   }
 
   query += " ORDER BY p.id";
-  const { rows } = await pool.query<Pokemon>(query, params);
+
+  const { result, error } = await tryCatch(pool.query<Pokemon>(query, params));
+  if (error) {
+    throw new Error(messages.NOT_FOUND);
+  }
+
+  const { rows } = result;
   return {
-    data: rows,
+    pokemons: rows,
   };
 };
 
-interface PokemonResponse {
-  data: Pokemon | null;
-}
+type PokemonResponse = {
+  pokemon: Pokemon | null;
+};
 
 export const getById = async (id: number): Promise<PokemonResponse> => {
-  if (isNaN(id)) {
-    throw new Error(messages.INVALID_ID);
-  }
-
   const query = `
     SELECT p.id, p.name, pt.name AS type, pr.name AS rarity, p.deleted
     FROM pokemons p
@@ -47,17 +51,29 @@ export const getById = async (id: number): Promise<PokemonResponse> => {
   `;
 
   const params: string[] = [id.toString()];
-  const { rows, rowCount } = await pool.query<Pokemon>(query, params);
+  const { result, error } = await tryCatch(pool.query<Pokemon>(query, params));
 
+  if (error) {
+    throw new Error(messages.NOT_FOUND);
+  }
+
+  const { rows, rowCount } = result;
   if (rowCount === 0) {
     throw new Error(messages.NOT_FOUND);
   }
 
+  const pokemonById: Pokemon = {
+    id: rows[0].id,
+    name: rows[0].name,
+    type: rows[0].type,
+    rarity: rows[0].rarity,
+    deleted: rows[0].deleted,
+  };
+
   return {
-    data: rows[0],
+    pokemon: pokemonById,
   };
 };
-
 
 export const create = async (
   name: string,
@@ -75,15 +91,27 @@ export const create = async (
   `;
   const params: string[] = [name, type, rarity];
 
-  const { rows, rowCount } = await pool.query<Pokemon>(query, params);
+  const { result, error } = await tryCatch(pool.query<Pokemon>(query, params));
 
-  if (rowCount === 0) {
+  if (error) {
+    throw new Error(messages.CREATE_FAILED);
   }
 
-  const { data } = await getById(rows[0].id);
+  const { rows, rowCount } = result;
+  if (rowCount === 0) {
+    throw new Error(messages.CREATE_FAILED);
+  }
+
+  const pokemonCreated: Pokemon = {
+    id: rows[0].id,
+    name: rows[0].name,
+    type: rows[0].type,
+    rarity: rows[0].rarity,
+    deleted: rows[0].deleted,
+  };
 
   return {
-    data,
+    pokemon: pokemonCreated,
   };
 };
 
@@ -93,14 +121,6 @@ export const update = async (
   type: PokemonType,
   rarity: PokemonRarity,
 ): Promise<PokemonResponse> => {
-  if (isNaN(Number(id))) {
-    throw new Error(messages.INVALID_ID);
-  }
-
-  if (!name || !type || !rarity) {
-    throw new Error(messages.INVALID_POKEMON);
-  }
-
   const query = `
     UPDATE pokemons SET
     name = $1,
@@ -109,16 +129,27 @@ export const update = async (
     WHERE id = $4 AND deleted = false
   `;
   const params: string[] = [name, type, rarity, id.toString()];
-  const { rowCount } = await pool.query<Pokemon>(query, params);
+  const { result, error } = await tryCatch(pool.query<Pokemon>(query, params));
 
+  if (error) {
+    throw new Error(messages.UPDATED_FAILED);
+  }
+
+  const { rows, rowCount } = result;
   if (rowCount === 0) {
     throw new Error(messages.NOT_FOUND);
   }
 
-  const { data } = await getById(id);
+  const pokemonUpdated: Pokemon = {
+    id: rows[0].id,
+    name: rows[0].name,
+    type: rows[0].type,
+    rarity: rows[0].rarity,
+    deleted: rows[0].deleted,
+  };
 
   return {
-    data,
+    pokemon: pokemonUpdated,
   };
 };
 
@@ -128,14 +159,6 @@ export const patch = async (
   type?: PokemonType,
   rarity?: PokemonRarity,
 ): Promise<PokemonResponse> => {
-  if (isNaN(id)) {
-    throw new Error(messages.INVALID_ID);
-  }
-
-  if (!name && !type) {
-    throw new Error(messages.PATCH_FIELD_REQUIRED);
-  }
-
   const sets: string[] = [];
   const params: (string | number)[] = [];
   let idx = 1;
@@ -145,7 +168,9 @@ export const patch = async (
     params.push(name);
   }
   if (type) {
-    sets.push(`type_id = (SELECT id FROM pokemon_types WHERE name = $${idx++})`);
+    sets.push(
+      `type_id = (SELECT id FROM pokemon_types WHERE name = $${idx++})`,
+    );
     params.push(type);
   }
   if (rarity) {
@@ -160,36 +185,55 @@ export const patch = async (
     UPDATE pokemons SET ${sets.join(", ")}
     WHERE id = $${idx} AND deleted = false
   `;
-  const { rowCount } = await pool.query<Pokemon>(query, params);
+  const { result, error } = await tryCatch(pool.query<Pokemon>(query, params));
+  
+  if (error) {
+    throw new Error(messages.UPDATED_FAILED);
+  }
+
+  const { rows, rowCount } = result;
   if (rowCount === 0) {
     throw new Error(messages.NOT_FOUND);
   }
 
-  const { data } = await getById(id);
+  const pokemonPatched: Pokemon = {
+    id: rows[0].id,
+    name: rows[0].name,
+    type: rows[0].type,
+    rarity: rows[0].rarity,
+    deleted: rows[0].deleted,
+  };
 
   return {
-    data,
+    pokemon: pokemonPatched,
   };
 };
 
 export const drop = async (id: number): Promise<PokemonResponse> => {
-  if (isNaN(id)) {
-    throw new Error(messages.INVALID_ID);
-  }
-
   const query = `
     UPDATE pokemons SET deleted = true
     WHERE id = $1 AND deleted = false
   `;
   const params: string[] = [id.toString()];
-  const { rowCount } = await pool.query<Pokemon>(query, params);
+  const { result, error } = await tryCatch(pool.query<Pokemon>(query, params));
+  if (error) {
+    throw new Error(messages.DELETED_FAILED);
+  }
+
+  const { rows, rowCount } = result;
   if (rowCount === 0) {
     throw new Error(messages.NOT_FOUND);
   }
 
-  const { data } = await getById(id);
+  const pokemonDeleted: Pokemon = {
+    id: rows[0].id,
+    name: rows[0].name,
+    type: rows[0].type,
+    rarity: rows[0].rarity,
+    deleted: rows[0].deleted,
+  }
 
   return {
-    data,
+    pokemon: pokemonDeleted,
   };
 };
