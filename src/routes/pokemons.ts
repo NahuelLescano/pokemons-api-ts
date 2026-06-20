@@ -16,4 +16,4 @@ pokemonRouter
   .post("/", createPokemon)
   .put("/", updatePokemon)
   .patch("/", patchPokemon)
-  .delete("/", deletePokemon);
+  .delete("/:id", deletePokemon);
